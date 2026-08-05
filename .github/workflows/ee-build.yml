@@ -9,6 +9,11 @@ on:
         description: The registry to which the image will be pushed.
         required: true
         type: string
+      working_directory:
+        description: The directory containing the EE files.
+        required: false
+        type: string
+        default: "."
     secrets:
       registry_username:
         required: true
@@ -78,10 +83,11 @@ jobs:
         run: pip install ansible-dev-tools
 
       - name: Define common environment variables
+        working-directory: ${{ inputs.working_directory }}
         run: |
           echo "EE=`yq -r '.options.tags[0]' 'execution-environment.yml'`" >> $GITHUB_ENV
           echo "EE_file=execution-environment.yml" >> $GITHUB_ENV
-          echo "IMAGE_REGISTRY=ghcr.io" >> $GITHUB_ENV
+          echo "IMAGE_REGISTRY=${{ inputs.registry }}" >> $GITHUB_ENV
 
       - name: Define environment variables for PR
         if: github.event_name == 'pull_request_target'
@@ -106,14 +112,15 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: (devel) Build image and create artifact
+        working-directory: ${{ inputs.working_directory }}
         run: |
           echo "Would build: ${{ env.EE }}"
 
       - name: Build image and create artifact
+        working-directory: ${{ inputs.working_directory }}
         run: |
           ansible-builder build -v 3 \
           --build-arg AH_TOKEN=${{ secrets.AH_TOKEN }} \
-          --context=../${{ env.EE }} \
           --tag=${{ env.EE }}:${{ env.IMAGE_TAG }} \
           --tag=${{ env.EE }}:${{ github.sha }}
 
@@ -157,7 +164,7 @@ jobs:
         uses: coactions/upload-artifact@v4
         with:
           name: commands-${{ env.EE }}
-          path: ./commands-${{ env.EE }}.txt
+          path: ${{ inputs.working_directory }}/commands-${{ env.EE }}.txt
 
       - name: Push To GHCR
         id: push_to_ghcr
